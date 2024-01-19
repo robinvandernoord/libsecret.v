@@ -18,8 +18,7 @@ pub fn (s SecretSchema) debug() {
 // only sync methods are currently supported
 pub fn (s SecretSchema) store_password[T](label string, password string, metadata T) bool {
 	metadata_json := json.encode(metadata)
-	success := C.store_password_sync(s.c_schema, label.str, password.str, metadata_json.str)
-	return success == 1
+	return C.store_password_sync(s.c_schema, label.str, password.str, metadata_json.str)
 }
 
 pub fn (s SecretSchema) load_password[T](label string, mut metadata T) ?string {
@@ -54,6 +53,10 @@ pub fn (s SecretSchema) load_password[T](label string, mut metadata T) ?string {
 		return password_raw.vstring()
 	}
 	return none
+}
+
+pub fn (s SecretSchema) remove_password(label string) bool {
+	return C.remove_password_sync(s.c_schema, label.str)
 }
 
 pub fn get_schema() &SecretSchema {

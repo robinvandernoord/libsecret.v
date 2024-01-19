@@ -30,4 +30,8 @@ fn test_basics() {
 	assert empty_password == 'missing'
 	assert empty_metadata.text == ''
 	assert empty_metadata.number == 0
+
+	assert schema.remove_password(label)
+	assert !schema.remove_password(label)
+	assert schema.load_password(label, mut loaded_metadata) or { '' } == ''
 }

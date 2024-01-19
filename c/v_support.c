@@ -30,13 +30,11 @@ const SecretSchema* get_schema() {
                                          // that const
         SECRET_SCHEMA_NONE,
         {
-            {"metadata",
-             SECRET_SCHEMA_ATTRIBUTE_STRING},  // more types are supported but
-                                               // json dumping into one field is
-                                               // easiest
-            {"label",
-             SECRET_SCHEMA_ATTRIBUTE_STRING},  // also store label because
-                                               // otherwise lookup won't work?
+            {"metadata", SECRET_SCHEMA_ATTRIBUTE_STRING},  // more types are supported but
+                                                           // json dumping into one field is
+                                                           // easiest
+            {"label", SECRET_SCHEMA_ATTRIBUTE_STRING},     // also store label because
+                                                           // otherwise lookup won't work?
             {NULL, 0},
         }};
 
@@ -46,21 +44,17 @@ const SecretSchema* get_schema() {
 
 // #store-a-password
 
-int store_password_sync(SecretSchema* schema,
-                        char* label,
-                        char* password,
-                        char* metadata) {
+int store_password_sync(SecretSchema* schema, char* label, char* password, char* metadata) {
     GError* error = NULL;
 
     /*
      * The variable argument list is the attributes used to later
      * lookup the password. These attributes must conform to the schema.
      */
-    secret_password_store_sync(
-        schema, SECRET_COLLECTION_DEFAULT, label, password, NULL, &error,
-        "label", label,  // save as metadata as well because otherwise we can't
-                         // lookup for some reason
-        "metadata", metadata, NULL);
+    secret_password_store_sync(schema, SECRET_COLLECTION_DEFAULT, label, password, NULL, &error, "label",
+                               label,  // save as metadata as well because otherwise we can't
+                                       // lookup for some reason
+                               "metadata", metadata, NULL);
 
     if (error != NULL) {
         /* ... handle the failure here */
@@ -72,13 +66,12 @@ int store_password_sync(SecretSchema* schema,
     }
 }
 
-
 typedef struct PasswordInfo {
     char* password;
     char* metadata;
 } PasswordInfo;
 
-char* extract_password(PasswordInfo* info) {
+char* extract_password(PasswordInfo* info) {    
     return info->password;
 }
 
@@ -97,8 +90,7 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label) {
 
     /* The attributes used to lookup the password should conform to the
      * schema.*/
-    GList* info = secret_password_search_sync(schema, NULL, NULL, &error,
-                                              "label", label, NULL);
+    GList* info = secret_password_search_sync(schema, NULL, NULL, &error, "label", label, NULL);
     if (error != NULL) {
         /* ... handle the failure here */
         g_error_free(error);
@@ -114,8 +106,7 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label) {
         SecretRetrievable* password_info = (SecretRetrievable*)iter->data;
 
         GError* error = NULL;
-        SecretValue* secret_value = secret_retrievable_retrieve_secret_sync(
-            password_info, NULL, &error);
+        SecretValue* secret_value = secret_retrievable_retrieve_secret_sync(password_info, NULL, &error);
         if (error != NULL) {
             continue;
         }
@@ -142,4 +133,26 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label) {
     g_list_free_full(info, g_object_unref);
 
     return result;
+}
+
+// #remove-a-password
+int remove_password_sync(SecretSchema* schema, char* label) {
+    GError *error = NULL;
+
+    /*
+    * The variable argument list is the attributes used to later
+    * lookup the password. These attributes must conform to the schema.
+    */
+    gboolean removed = secret_password_clear_sync (schema, NULL, &error,
+                                                "label", label,
+                                                NULL);
+
+    if (error != NULL) {
+        /* ... handle the failure here */
+        g_error_free (error);
+        return 0;
+    } else {
+        /* removed will be TRUE if a password was removed */
+        return removed;
+    }
 }
