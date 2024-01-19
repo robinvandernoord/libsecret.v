@@ -72,50 +72,40 @@ int store_password_sync(SecretSchema* schema,
     }
 }
 
-// #lookup-a-password
-// char* get_password_sync(SecretSchema* schema, char* label) {
-//     GError* error = NULL;
 
-//     /* The attributes used to lookup the password should conform to the
-//     schema.
-//      */
-//     gchar* password = secret_password_lookup_sync(
-//         schema, NULL, &error, "label", label, NULL);
+typedef struct PasswordInfo {
+    char* password;
+    char* metadata;
+} PasswordInfo;
 
-//     printf("password: ");
-//     printf(password);
-//     printf("\n");
+char* extract_password(PasswordInfo* info) {
+    return info->password;
+}
 
-//     if (error != NULL) {
-//         /* ... handle the failure here */
-//         g_error_free(error);
-//         return NULL;
-//     } else if (password == NULL) {
-//         /* password will be null, if no matching password found */
-//         return NULL;
-//     } else {
-//         /* ... do something with the password */
-//         return password;
-//         // secret_password_free(password);
-//     }
-// }
+char* extract_metadata(PasswordInfo* info) {
+    return info->metadata;
+}
 
-char* get_password_sync(SecretSchema* schema, char* label) {
-    char* password_str;
-    char* metadata_str;
+PasswordInfo* get_password_sync(SecretSchema* schema, char* label) {
+    // throw it on the heap:
+    PasswordInfo* result = (PasswordInfo*)malloc(sizeof(PasswordInfo));
+
+    result->password = NULL;
+    result->metadata = NULL;
 
     GError* error = NULL;
 
-    /* The attributes used to lookup the password should conform to the schema.*/
+    /* The attributes used to lookup the password should conform to the
+     * schema.*/
     GList* info = secret_password_search_sync(schema, NULL, NULL, &error,
                                               "label", label, NULL);
     if (error != NULL) {
         /* ... handle the failure here */
         g_error_free(error);
-        return NULL;
+        return result;
     } else if (info == NULL) {
         /* info will be null, if no matching entry found */
-        return NULL;
+        return result;
     }
 
     /* ... do something with the info */
@@ -124,7 +114,8 @@ char* get_password_sync(SecretSchema* schema, char* label) {
         SecretRetrievable* password_info = (SecretRetrievable*)iter->data;
 
         GError* error = NULL;
-        SecretValue* secret_value = secret_retrievable_retrieve_secret_sync(password_info, NULL, &error);
+        SecretValue* secret_value = secret_retrievable_retrieve_secret_sync(
+            password_info, NULL, &error);
         if (error != NULL) {
             continue;
         }
@@ -134,19 +125,21 @@ char* get_password_sync(SecretSchema* schema, char* label) {
         gpointer metadata = g_hash_table_lookup(attrs, "metadata");
 
         if (metadata == NULL) {
-            metadata_str = "";
+            result->metadata = strdup("");
         } else {
-            metadata_str = strdup(metadata); // copy string
+            result->metadata = strdup(metadata);  // copy string
         }
 
-        g_hash_table_unref(attrs); // clean up
+        g_hash_table_unref(attrs);  // clean up
 
-        password_str = strdup(secret_value_get_text(secret_value));
+        result->password = strdup(secret_value_get_text(secret_value));
 
-        secret_value_unref(secret_value); // clean up
+        secret_value_unref(secret_value);  // clean up
 
-        break; // only do one
+        break;  // only do one
     }
 
-    return password_str;
+    g_list_free_full(info, g_object_unref);
+
+    return result;
 }
