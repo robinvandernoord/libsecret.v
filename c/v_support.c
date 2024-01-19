@@ -5,6 +5,8 @@
 // #include <glib.h>
 #include <libsecret/secret.h>
 
+#define APPLICATION "v.robinvandernoord.libsecret"
+
 void print_secret_schema(const SecretSchema* schema) {
     // debug only
     printf("Secret Schema:\n");
@@ -22,19 +24,22 @@ void print_secret_schema(const SecretSchema* schema) {
 // slightly modified examples from
 // https://gnome.pages.gitlab.gnome.org/libsecret/libsecret-c-examples.html
 
+
+
 // #define-a-password-schema
 const SecretSchema* get_schema() {
     static const SecretSchema the_schema = {
-        "v.robinvandernoord.libsecret",  // you can get a c-string in V with
-                                         // c"some contents" but idk how to make
-                                         // that const
+        APPLICATION,  // you can get a c-string in V with
+                      // c"some contents" but idk how to make
+                      // that const
         SECRET_SCHEMA_NONE,
         {
-            {"metadata", SECRET_SCHEMA_ATTRIBUTE_STRING},  // more types are supported but
-                                                           // json dumping into one field is
-                                                           // easiest
-            {"label", SECRET_SCHEMA_ATTRIBUTE_STRING},     // also store label because
-                                                           // otherwise lookup won't work?
+            {"metadata", SECRET_SCHEMA_ATTRIBUTE_STRING},    // more types are supported but
+                                                             // json dumping into one field is
+                                                             // easiest
+            {"label", SECRET_SCHEMA_ATTRIBUTE_STRING},       // also store label because
+                                                             // otherwise lookup won't work?
+            {"application", SECRET_SCHEMA_ATTRIBUTE_STRING}, // and store APPLICATION global for easy listing
             {NULL, 0},
         }};
 
@@ -51,14 +56,20 @@ int store_password_sync(SecretSchema* schema, char* label, char* password, char*
      * The variable argument list is the attributes used to later
      * lookup the password. These attributes must conform to the schema.
      */
-    secret_password_store_sync(schema, SECRET_COLLECTION_DEFAULT, label, password, NULL, &error, "label",
-                               label,  // save as metadata as well because otherwise we can't
-                                       // lookup for some reason
-                               "metadata", metadata, NULL);
+    secret_password_store_sync(schema, SECRET_COLLECTION_DEFAULT, label, password, NULL, &error,
+     "application", APPLICATION,
+     "label", label,  // save as metadata as well because otherwise we can't
+                      // lookup for some reason
+     "metadata", metadata, NULL);
 
     if (error != NULL) {
         /* ... handle the failure here */
+        fprintf(stderr, "Error storing password: ");
+        fprintf(stderr, error->message);
+        fprintf(stderr, "\n");
+
         g_error_free(error);
+
         return 0;
     } else {
         /* ... do something now that the password has been stored */
@@ -90,9 +101,15 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label) {
 
     /* The attributes used to lookup the password should conform to the
      * schema.*/
-    GList* info = secret_password_search_sync(schema, NULL, NULL, &error, "label", label, NULL);
+    GList* info = secret_password_search_sync(schema, NULL, NULL, &error, 
+    "application", APPLICATION,
+    "label", label, NULL);
     if (error != NULL) {
         /* ... handle the failure here */
+        fprintf(stderr, "Error loading password: ");
+        fprintf(stderr, error->message);
+        fprintf(stderr, "\n");
+
         g_error_free(error);
         return result;
     } else if (info == NULL) {
@@ -144,11 +161,16 @@ int remove_password_sync(SecretSchema* schema, char* label) {
     * lookup the password. These attributes must conform to the schema.
     */
     gboolean removed = secret_password_clear_sync (schema, NULL, &error,
+                                                "application", APPLICATION,
                                                 "label", label,
                                                 NULL);
 
     if (error != NULL) {
         /* ... handle the failure here */
+        fprintf(stderr, "Error removing password: ");
+        fprintf(stderr, error->message);
+        fprintf(stderr, "\n");
+
         g_error_free (error);
         return 0;
     } else {
