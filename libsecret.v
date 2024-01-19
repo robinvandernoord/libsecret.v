@@ -4,7 +4,6 @@ import json
 
 struct SecretSchema {
 	c_schema &C.SecretSchema @[skip] // internal only
-	// t_metadata T
 }
 
 fn (s SecretSchema) str() string {
@@ -17,11 +16,27 @@ pub fn (s SecretSchema) debug() {
 }
 
 // only sync methods are currently supported
-pub fn (s SecretSchema) store_password_sync[T](label string, password string, metadata T) bool {
+pub fn (s SecretSchema) store_password[T](label string, password string, metadata T) bool {
 	metadata_json := json.encode(metadata)
 	success := C.store_password_sync(s.c_schema, label.str, password.str, metadata_json.str)
 	return success == 1
 }
+
+pub fn (s SecretSchema) load_password(label string) ?string {
+	password_raw := C.get_password_sync(s.c_schema, label.str)
+
+	if password_raw == 0 {
+		// null pointer = 0
+		return none
+	}
+
+	unsafe {
+		// println(password_raw)
+		return password_raw.vstring()
+	}
+	return none
+}
+
 
 pub fn get_schema() &SecretSchema {
 	// used to get internal C schema struct, which can't be used from V!
@@ -31,3 +46,4 @@ pub fn get_schema() &SecretSchema {
 		c_schema
 	}
 }
+
