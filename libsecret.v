@@ -3,15 +3,15 @@ module libsecret
 import json
 import rand
 
-struct SecretSchema {
-	c_schema &C.SecretSchema @[skip] // internal only
-}
-
 struct Password[T] {
 	// todo: use this struct
-	uuid string
+	uuid     string
 	password ?string
 	metadata &T
+}
+
+struct SecretSchema {
+	c_schema &C.SecretSchema @[skip] // internal only
 }
 
 fn (s SecretSchema) str() string {
@@ -31,17 +31,35 @@ pub fn (s SecretSchema) store_password_with_uuid[T](uuid string, label string, p
 
 pub fn (s SecretSchema) store_password[T](label string, password string, metadata T) ?string {
 	uuid := rand.uuid_v4()
-	if(s.store_password_with_uuid(uuid, label, password, metadata)){
+	if s.store_password_with_uuid(uuid, label, password, metadata) {
 		return uuid
 	} else {
 		return none
 	}
 }
 
-// fn (s SecretSchema) handle_password_result[T](info_obj C.PasswordInfo, mut metadata T) ?string {}
+fn safe_get(info &C.PasswordInfo, field string) ?string {
+	data_raw := match field {
+		// only needed because info.uuid etc. does not seem to work
+		'uuid' { C.passwordinfo_uuid(info) }
+		'label' { C.passwordinfo_label(info) }
+		'password' { C.passwordinfo_password(info) }
+		'metadata' { C.passwordinfo_metadata(info) }
+		else { C.passwordinfo_null(info) } // why can't I just panic() here?
+	}
+
+	unsafe {
+		if data_raw == nil {
+			return none
+		}
+		// got data
+		return data_raw.vstring()
+	}
+}
 
 pub fn (s SecretSchema) load_password[T](uuid_or_label string, mut metadata T) ?string {
 	info_obj := C.get_password_sync(s.c_schema, uuid_or_label.str)
+
 	unsafe {
 		defer {
 			// make sure it's removed from the heap at the end of this function
@@ -50,28 +68,12 @@ pub fn (s SecretSchema) load_password[T](uuid_or_label string, mut metadata T) ?
 			free(info_obj)
 		}
 	}
-	// first: metadata
-	unsafe {
-		metadata_raw := C.extract_metadata(info_obj)
+	// first: fill metadata
+	metadata_str := safe_get(info_obj, 'metadata') or { '' }
+	metadata = json.decode(T, metadata_str) or { T{} }
 
-		if metadata_raw != nil {
-			// got metadata
-			metadata_str := metadata_raw.vstring()
-
-			// mut input var:
-			metadata = json.decode(T, metadata_str) or { T{} }
-		}
-	}
-	// then: password
-	unsafe {
-		password_raw := C.extract_password(info_obj)
-		if password_raw == nil {
-			return none
-		}
-
-		return password_raw.vstring()
-	}
-	return none
+	// then: return password
+	return safe_get(info_obj, 'password')
 }
 
 pub fn (s SecretSchema) remove_password(label_or_uuid string) bool {

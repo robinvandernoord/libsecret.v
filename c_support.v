@@ -8,8 +8,8 @@ module libsecret
 #flag -lglib-2.0 -lsecret-1
 
 struct C.PasswordInfo {
-	password &u8
-	metadata &u8
+	// password byteptr
+	// metadata byteptr
 }
 
 struct C.SecretSchema {
@@ -25,5 +25,8 @@ fn C.remove_password_sync(schema &C.SecretSchema, uuid_or_label &u8) bool
 
 fn C.list_passwords(schema &C.SecretSchema) &u8
 
-fn C.extract_password(info &C.PasswordInfo) &u8
-fn C.extract_metadata(info &C.PasswordInfo) &u8
+fn C.passwordinfo_uuid(info &C.PasswordInfo) &u8
+fn C.passwordinfo_password(info &C.PasswordInfo) &u8
+fn C.passwordinfo_label(info &C.PasswordInfo) &u8
+fn C.passwordinfo_metadata(info &C.PasswordInfo) &u8
+fn C.passwordinfo_null(info &C.PasswordInfo) &u8

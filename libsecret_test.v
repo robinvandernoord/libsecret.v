@@ -16,7 +16,7 @@ fn test_basics() {
 	label := 'v-test-label'
 	password := 'v-test-password'
 
-	assert schema.store_password(label, password, Metadata{'v-test-text', 42}) or {''} != ''
+	assert schema.store_password(label, password, Metadata{'v-test-text', 42}) or { '' } != ''
 
 	mut loaded_metadata := Metadata{}
 	loaded_password := schema.load_password(label, mut loaded_metadata) or { 'missing' }

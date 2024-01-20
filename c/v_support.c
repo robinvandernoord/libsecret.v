@@ -72,16 +72,30 @@ int store_password_sync(SecretSchema* schema, char* uuid, char* label, char* pas
 }
 
 typedef struct PasswordInfo {
+    char* uuid;
+    char* label;
     char* password;
     char* metadata;
 } PasswordInfo;
 
-char* extract_password(PasswordInfo* info) {
+char* passwordinfo_uuid(PasswordInfo* info) {
+    return info->uuid;
+}
+
+char* passwordinfo_password(PasswordInfo* info) {
     return info->password;
 }
 
-char* extract_metadata(PasswordInfo* info) {
+char* passwordinfo_label(PasswordInfo* info) {
+    return info->label;
+}
+
+char* passwordinfo_metadata(PasswordInfo* info) {
     return info->metadata;
+}
+
+char* passwordinfo_null(PasswordInfo* info) {
+    return NULL;
 }
 
 char* get_metadata(SecretRetrievable* password_info) {
@@ -116,6 +130,8 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label_or_uuid) {
     // throw it on the heap:
     PasswordInfo* result = (PasswordInfo*)malloc(sizeof(PasswordInfo));
 
+    result->uuid     = NULL;
+    result->label    = NULL;
     result->password = NULL;
     result->metadata = NULL;
 

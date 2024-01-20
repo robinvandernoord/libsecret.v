@@ -16,7 +16,10 @@ int remove_password_sync(SecretSchema* schema, char* label)
 
 char* list_passwords(SecretSchema* schema);
 
-char* extract_password(PasswordInfo* info);
-char* extract_metadata(PasswordInfo* info);
+char* passwordinfo_uuid(PasswordInfo* info)
+char* passwordinfo_password(PasswordInfo* info)
+char* passwordinfo_label(PasswordInfo* info)
+char* passwordinfo_metadata(PasswordInfo* info)
+char* passwordinfo_null(PasswordInfo* info)
 
 #endif // V_SUPPORT_H
