@@ -4,10 +4,18 @@ import json
 import rand
 
 struct Password[T] {
-	// todo: use this struct
 	uuid     string
-	password ?string
+	label    string
+	password string
 	metadata &T
+
+	valid bool
+}
+
+fn ctov_password[T](c_obj &C.PasswordInfo, meta_type T, success bool) &Password[T] {
+	metadata := T{}
+
+	return &Password[T]{'', '', '', &metadata, success}
 }
 
 struct SecretSchema {
@@ -24,18 +32,16 @@ pub fn (s SecretSchema) debug() {
 }
 
 // only sync methods are currently supported
-pub fn (s SecretSchema) store_password_with_uuid[T](uuid string, label string, password string, metadata T) bool {
+pub fn (s SecretSchema) store_password_with_uuid[T](uuid string, label string, password string, metadata T) &Password[T] {
 	metadata_json := json.encode(metadata)
-	return C.store_password_sync(s.c_schema, uuid.str, label.str, password.str, metadata_json.str)
+	success := C.store_password_sync(s.c_schema, uuid.str, label.str, password.str, metadata_json.str)
+
+	return &Password[T]{uuid, label, password, &metadata, success}
 }
 
-pub fn (s SecretSchema) store_password[T](label string, password string, metadata T) ?string {
+pub fn (s SecretSchema) store_password[T](label string, password string, metadata T) &Password[T] {
 	uuid := rand.uuid_v4()
-	if s.store_password_with_uuid(uuid, label, password, metadata) {
-		return uuid
-	} else {
-		return none
-	}
+	return s.store_password_with_uuid(uuid, label, password, metadata)
 }
 
 fn safe_get(info &C.PasswordInfo, field string) ?string {
