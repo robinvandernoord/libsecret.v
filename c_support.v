@@ -30,3 +30,5 @@ fn C.passwordinfo_password(info &C.PasswordInfo) &u8
 fn C.passwordinfo_label(info &C.PasswordInfo) &u8
 fn C.passwordinfo_metadata(info &C.PasswordInfo) &u8
 fn C.passwordinfo_null(info &C.PasswordInfo) &u8
+
+fn C.is_null(info voidptr) bool

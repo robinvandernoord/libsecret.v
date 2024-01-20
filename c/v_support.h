@@ -22,4 +22,6 @@ char* passwordinfo_label(PasswordInfo* info)
 char* passwordinfo_metadata(PasswordInfo* info)
 char* passwordinfo_null(PasswordInfo* info)
 
+_Bool is_null(void* info)
+
 #endif // V_SUPPORT_H

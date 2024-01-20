@@ -12,34 +12,43 @@ struct Password[T] {
 	valid bool
 }
 
-fn ctov_password[T](c_obj &C.PasswordInfo, meta_type T, success bool) &Password[T] {
-	metadata := T{}
+fn ctov_password[T](c_obj &C.PasswordInfo, meta_type T) &Password[T] {
+	uuid_str := safe_get(c_obj, 'uuid') or { '' }
+	label_str := safe_get(c_obj, 'label') or { '' }
+	password_str := safe_get(c_obj, 'password') or { '' }
 
-	return &Password[T]{'', '', '', &metadata, success}
+	metadata_str := safe_get(c_obj, 'metadata') or { '' }
+	metadata := json.decode(T, metadata_str) or { T{} }
+
+	success := !C.is_null(c_obj)
+	return &Password[T]{uuid_str, label_str, password_str, &metadata, success}
 }
 
-struct SecretSchema {
-	c_schema &C.SecretSchema @[skip] // internal only
+struct SecretSchema[T] {
+	// internal only:
+	c_schema  &C.SecretSchema @[skip]
+	meta_type T               @[skip]
 }
 
-fn (s SecretSchema) str() string {
+fn (s SecretSchema[T]) str() string {
 	// prevent memory error:
 	return 'SecretSchema{}'
 }
 
-pub fn (s SecretSchema) debug() {
+pub fn (s SecretSchema[T]) debug() {
 	C.print_secret_schema(s.c_schema)
 }
 
-// only sync methods are currently supported
-pub fn (s SecretSchema) store_password_with_uuid[T](uuid string, label string, password string, metadata T) &Password[T] {
+pub fn (s SecretSchema[T]) store_password_with_uuid[T](uuid string, label string, password string, metadata T) &Password[T] {
 	metadata_json := json.encode(metadata)
+
+	// only sync methods are currently supported
 	success := C.store_password_sync(s.c_schema, uuid.str, label.str, password.str, metadata_json.str)
 
 	return &Password[T]{uuid, label, password, &metadata, success}
 }
 
-pub fn (s SecretSchema) store_password[T](label string, password string, metadata T) &Password[T] {
+pub fn (s SecretSchema[T]) store_password[T](label string, password string, metadata T) &Password[T] {
 	uuid := rand.uuid_v4()
 	return s.store_password_with_uuid(uuid, label, password, metadata)
 }
@@ -63,7 +72,7 @@ fn safe_get(info &C.PasswordInfo, field string) ?string {
 	}
 }
 
-pub fn (s SecretSchema) load_password[T](uuid_or_label string, mut metadata T) ?string {
+pub fn (s SecretSchema[T]) load_password[T](uuid_or_label string) &Password[T] {
 	info_obj := C.get_password_sync(s.c_schema, uuid_or_label.str)
 
 	unsafe {
@@ -74,21 +83,14 @@ pub fn (s SecretSchema) load_password[T](uuid_or_label string, mut metadata T) ?
 			free(info_obj)
 		}
 	}
-	// first: fill metadata
-	metadata_str := safe_get(info_obj, 'metadata') or { '' }
-	metadata = json.decode(T, metadata_str) or { T{} }
-
-	// then: return password
-	return safe_get(info_obj, 'password')
+	return ctov_password(info_obj, s.meta_type)
 }
 
-pub fn (s SecretSchema) remove_password(label_or_uuid string) bool {
+pub fn (s SecretSchema[T]) remove_password(label_or_uuid string) bool {
 	return C.remove_password_sync(s.c_schema, label_or_uuid.str)
 }
 
-/**
-*/
-pub fn (s SecretSchema) list_passwords[T](mut metadata []T) bool {
+pub fn (s SecretSchema[T]) list_passwords[T]() []T {
 	// todo: return or fill []Password
 	raw_result := C.list_passwords(s.c_schema)
 	defer {
@@ -98,21 +100,12 @@ pub fn (s SecretSchema) list_passwords[T](mut metadata []T) bool {
 		}
 	}
 
-	unsafe {
-		if raw_result == nil {
-			return false
-		}
-		str_result := raw_result.vstring()
-
-		metadata = json.decode([]T, str_result) or { []T{} }
-
-		return true
-	}
+	return []
 }
 
-pub fn get_schema() &SecretSchema {
+pub fn get_schema[T](meta_type T) &SecretSchema[T] {
 	// used to get internal C schema struct, which can't be directly used from V!
 	c_schema := C.get_schema()
 
-	return &SecretSchema{c_schema}
+	return &SecretSchema[T]{c_schema, meta_type}
 }

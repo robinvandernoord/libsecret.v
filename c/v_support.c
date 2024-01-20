@@ -78,6 +78,10 @@ typedef struct PasswordInfo {
     char* metadata;
 } PasswordInfo;
 
+_Bool is_null(void* info) {
+    return info == NULL;
+}
+
 char* passwordinfo_uuid(PasswordInfo* info) {
     return info->uuid;
 }
