@@ -5,6 +5,7 @@
 // #include <glib.h>
 #include <libsecret/secret.h>
 
+// todo: dynamic based on test environment or not (flag)
 #define APPLICATION "v.robinvandernoord.libsecret"
 
 void print_secret_schema(const SecretSchema* schema) {
@@ -86,12 +87,12 @@ char* passwordinfo_uuid(PasswordInfo* info) {
     return info->uuid;
 }
 
-char* passwordinfo_password(PasswordInfo* info) {
-    return info->password;
-}
-
 char* passwordinfo_label(PasswordInfo* info) {
     return info->label;
+}
+
+char* passwordinfo_password(PasswordInfo* info) {
+    return info->password;
 }
 
 char* passwordinfo_metadata(PasswordInfo* info) {
@@ -100,6 +101,29 @@ char* passwordinfo_metadata(PasswordInfo* info) {
 
 char* passwordinfo_null(PasswordInfo* info) {
     return NULL;
+}
+
+char* get_attrib(SecretRetrievable* password_info, char* attr) {
+    char* result_value = "";
+    GHashTable* attrs = secret_retrievable_get_attributes(password_info);
+
+    gpointer value = g_hash_table_lookup(attrs, attr);
+
+    if (value != NULL) {
+        result_value = strdup(value);  // copy string
+    }
+
+    g_hash_table_unref(attrs);  // clean up
+
+    return result_value;
+}
+
+char* get_uuid(SecretRetrievable* password_info) {
+    return get_attrib(password_info, "uuid");
+}
+
+char* get_label(SecretRetrievable* password_info) {
+    return get_attrib(password_info, "label");
 }
 
 char* get_metadata(SecretRetrievable* password_info) {
@@ -112,7 +136,7 @@ char* get_metadata(SecretRetrievable* password_info) {
         result_metadata = strdup(metadata);  // copy string
     }
 
-    g_hash_table_unref(attrs);  // clean up
+    g_hash_table_unref(attrs);  // clean up, includes 'metadata'
 
     return result_metadata;
 }
@@ -130,7 +154,7 @@ char* get_password(SecretRetrievable* password_info) {
     return result_password;
 }
 
-PasswordInfo* get_password_sync(SecretSchema* schema, char* label_or_uuid) {
+PasswordInfo* empty_password_obj() {
     // throw it on the heap:
     PasswordInfo* result = (PasswordInfo*)malloc(sizeof(PasswordInfo));
 
@@ -138,23 +162,40 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label_or_uuid) {
     result->label    = NULL;
     result->password = NULL;
     result->metadata = NULL;
+    return result;
+}
 
-    GError* error = NULL;
+GList* search_by_attribute(SecretSchema* schema, char* key, char* value) {
+        GError* error = NULL;
+
+        GList* info = secret_password_search_sync(schema, SECRET_SEARCH_NONE, NULL, &error, "application", APPLICATION,
+                                              key, value, NULL);
+
+        if (error != NULL) {
+            /* ... handle the failure here */
+            fprintf(stderr, "Error loading password: %s\n", error->message);
+            g_error_free(error);
+            return NULL;
+        }
+
+        return info;
+
+}
+
+PasswordInfo* get_password_sync(SecretSchema* schema, char* uuid_or_label, _Bool allow_label) {
+    // if not allow label, search UUID only
+    PasswordInfo* result = empty_password_obj();
 
     /* The attributes used to lookup the password should conform to the
      * schema.*/
-    GList* info = secret_password_search_sync(schema, SECRET_SEARCH_NONE, NULL, &error, "application", APPLICATION,
-                                              "label", label_or_uuid, NULL);
+    GList* info = search_by_attribute(schema, "uuid", uuid_or_label);
 
-    // todo: first get by uuid, then by label
 
-    if (error != NULL) {
-        /* ... handle the failure here */
-        fprintf(stderr, "Error loading password: %s\n", error->message);
-        g_error_free(error);
-        return result;
-    } else if (info == NULL) {
-        /* info will be null, if no matching entry found */
+    if (info == NULL && allow_label) {
+        info = search_by_attribute(schema, "label", uuid_or_label);
+    }
+
+    if (info == NULL) {
         return result;
     }
 
@@ -163,6 +204,8 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label_or_uuid) {
     for (iter = info; iter != NULL; iter = g_list_next(iter)) {
         SecretRetrievable* password_info = (SecretRetrievable*)iter->data;
 
+        result->uuid = get_uuid(password_info);
+        result->label = get_label(password_info);
         result->password = get_password(password_info);
         result->metadata = get_metadata(password_info);
 
@@ -174,16 +217,14 @@ PasswordInfo* get_password_sync(SecretSchema* schema, char* label_or_uuid) {
     return result;
 }
 
-// #remove-a-password
-int remove_password_sync(SecretSchema* schema, char* uuid_or_label) {
+int remove_by_attribute(SecretSchema* schema, char* key, char* value) {
     GError* error = NULL;
 
     /*
      * The variable argument list is the attributes used to later
      * lookup the password. These attributes must conform to the schema.
      */
-    gboolean removed =
-        secret_password_clear_sync(schema, NULL, &error, "application", APPLICATION, "label", uuid_or_label, NULL);
+    gboolean removed = secret_password_clear_sync(schema, NULL, &error, "application", APPLICATION, key, value, NULL);
 
     // todo: support uuid
 
@@ -198,6 +239,15 @@ int remove_password_sync(SecretSchema* schema, char* uuid_or_label) {
     }
 }
 
+// #remove-a-password
+int remove_password_sync(SecretSchema* schema, char* uuid_or_label, _Bool allow_label) {
+    int removed = remove_by_attribute(schema, "uuid", uuid_or_label);
+    if (!removed && allow_label) {
+        return remove_by_attribute(schema, "label", uuid_or_label);
+    }
+    return removed;
+}
+
 GList* list_all(SecretSchema* schema) {
     GError* error = NULL;
 
@@ -208,12 +258,8 @@ GList* list_all(SecretSchema* schema) {
     return info;
 }
 
-// todo: remove_all ?
-
-char* list_passwords(SecretSchema* schema) {
-    // fixme: only returns []Metadata now,
-    // no identifying labels...
-
+char* list_uuids(SecretSchema* schema){
+    // as JSON because that's easier than list of strings
     GList* info = list_all(schema);
     if (info == NULL) {
         return NULL;
@@ -229,19 +275,17 @@ char* list_passwords(SecretSchema* schema) {
     for (iter = info; iter != NULL; iter = g_list_next(iter)) {
         SecretRetrievable* password_info = (SecretRetrievable*)iter->data;
 
-        // char* label = password_info.get_label();
-
-        char* metadata = get_metadata(password_info);
-
-        // "label": metadata,
+        char* uuid = get_uuid(password_info);
 
         size_t current_length = strlen(result);
-        size_t new_length = current_length + strlen(metadata) + 1;  // +1 for comma
+        size_t new_length = current_length + strlen(uuid) + 5;  // + 3 for comma and quotes (\" counts for two I guess?)
 
         result = (char*)realloc(result, new_length);
-        strcat(result, strdup(metadata));
-
-        free(metadata);
+        strcat(result, "\"");
+        strcat(result, strdup(uuid));
+        strcat(result, "\"");
+        
+        // free(uuid);
         // if not last one:
         idx++;
 
@@ -256,3 +300,65 @@ char* list_passwords(SecretSchema* schema) {
     // free(result); // defered in V
     return result;
 }
+
+
+int count_passwords(SecretSchema* schema) {
+    GList* info = list_all(schema);
+    if (info == NULL) {
+        return 0;
+    }
+
+    int items = g_list_length(info);
+
+    g_list_free_full(info, g_object_unref);
+    return items;
+}
+
+// !!! for some reason, these two functions work well together from C,
+// but when V calls them it gives a memory error half of the times (even with @[manualfree]).
+// so use list_uuid + lookup per uuid instead. !!!
+
+// PasswordInfo** list_passwords(SecretSchema* schema) {
+//     GList* info = list_all(schema);
+//     if (info == NULL) {
+//         return NULL;
+//     }
+
+//     int items = g_list_length(info);
+//     int idx = 0;
+
+//     PasswordInfo** result = malloc(items * sizeof(PasswordInfo));
+
+//     GList* iter;
+//     for (iter = info; iter != NULL; iter = g_list_next(iter)) {
+//         SecretRetrievable* password_info = (SecretRetrievable*)iter->data;
+
+//         char* password = get_password(password_info);
+//         char* metadata = get_metadata(password_info);
+
+//         PasswordInfo* password_item = empty_password_obj();
+//         password_item->password = strdup(password);
+//         password_item->metadata = strdup(metadata);
+
+//         result[idx] = password_item;
+
+//         free(password);
+//         free(metadata);
+//         // if not last one:
+//         idx++;
+//     }
+//     g_list_free_full(info, g_object_unref);
+
+//     // free(result); // defered in V
+//     return result;
+// }
+
+// PasswordInfo* get_passwordinfo_from_list(PasswordInfo** password_list, int idx) {
+//     printf("get_passwordinfo_from_list:%d\n", idx);
+
+//     PasswordInfo* data = password_list[idx];
+//     printf("pwd: %s\n", data->password);
+    
+//     // free(data); // defered to V
+//     return data;
+// }

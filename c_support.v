@@ -7,9 +7,12 @@ module libsecret
 #flag -I/usr/include/libsecret-1 -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include/
 #flag -lglib-2.0 -lsecret-1
 
+@[heap]
 struct C.PasswordInfo {
-	// password byteptr
-	// metadata byteptr
+	uuid     charptr
+	label    byteptr
+	password byteptr
+	metadata byteptr
 }
 
 struct C.SecretSchema {
@@ -20,10 +23,15 @@ fn C.get_schema() &C.SecretSchema
 fn C.print_secret_schema(schema &C.SecretSchema)
 
 fn C.store_password_sync(schema &C.SecretSchema, uuid &u8, label &u8, password &u8, metadata &u8) bool // &u8 = c string
-fn C.get_password_sync(schema &C.SecretSchema, uuid_or_label &u8) &C.PasswordInfo
-fn C.remove_password_sync(schema &C.SecretSchema, uuid_or_label &u8) bool
+fn C.get_password_sync(schema &C.SecretSchema, uuid_or_label &u8, allow_label bool) &C.PasswordInfo
+fn C.remove_password_sync(schema &C.SecretSchema, uuid_or_label &u8, allow_label bool) bool
 
-fn C.list_passwords(schema &C.SecretSchema) &u8
+fn C.list_uuids(schema &C.SecretSchema) &u8
+
+fn C.count_passwords(schema &C.SecretSchema) int
+
+// fn C.list_passwords(schema &C.SecretSchema) &&C.PasswordInfo
+// fn C.get_passwordinfo_from_list(password_list &&C.PasswordInfo, idx int) &C.PasswordInfo
 
 fn C.passwordinfo_uuid(info &C.PasswordInfo) &u8
 fn C.passwordinfo_password(info &C.PasswordInfo) &u8
@@ -32,3 +40,5 @@ fn C.passwordinfo_metadata(info &C.PasswordInfo) &u8
 fn C.passwordinfo_null(info &C.PasswordInfo) &u8
 
 fn C.is_null(info voidptr) bool
+
+fn C.iterate_password_list(schema &C.SecretSchema)
