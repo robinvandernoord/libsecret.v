@@ -90,6 +90,10 @@ char* extract_metadata(PasswordInfo* info) {
     return info->metadata;
 }
 
+char* passwordinfo_null(void* _) {
+    return NULL;
+}
+
 PasswordInfo* get_password_sync(SecretSchema* schema, char* label) {
     // throw it on the heap:
     PasswordInfo* result = (PasswordInfo*)malloc(sizeof(PasswordInfo));

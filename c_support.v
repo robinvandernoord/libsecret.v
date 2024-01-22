@@ -25,3 +25,4 @@ fn C.remove_password_sync(schema &C.SecretSchema, label &u8) bool
 
 fn C.extract_password(info &C.PasswordInfo) &u8
 fn C.extract_metadata(info &C.PasswordInfo) &u8
+fn C.passwordinfo_null(info &C.PasswordInfo) &u8

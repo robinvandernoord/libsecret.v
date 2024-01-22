@@ -16,5 +16,6 @@ int remove_password_sync(SecretSchema* schema, char* label)
 
 char* extract_password(PasswordInfo* info);
 char* extract_metadata(PasswordInfo* info);
+char* passwordinfo_null(void* _);
 
 #endif // V_SUPPORT_H

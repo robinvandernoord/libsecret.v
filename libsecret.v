@@ -2,6 +2,29 @@ module libsecret
 
 import json
 
+fn safe_get(info &C.PasswordInfo, field string) ?string {
+	data_raw := match field {
+		// only needed because info.password etc. does not seem to work
+		'password' { C.extract_password(info) }
+		'metadata' { C.extract_metadata(info) }
+		else { C.passwordinfo_null(info) } // why can't I just panic() here?
+	}
+
+	unsafe {
+		defer {
+			free(data_raw)
+		}
+
+		if data_raw == nil {
+			return none
+		}
+
+		// got data
+		return cstring_to_vstring(data_raw) // NOTE: cstring_to_vstring should make a copy whereas .vstring() is only a reference - this breaking if the original element is freed!
+		// return data_raw.vstring()
+	}
+}
+
 struct SecretSchema {
 	c_schema &C.SecretSchema @[skip] // internal only
 }
@@ -32,27 +55,11 @@ pub fn (s SecretSchema) load_password[T](label string, mut metadata T) ?string {
 		}
 	}
 	// first: metadata
-	unsafe {
-		metadata_raw := C.extract_metadata(info_obj)
+	metadata_str := safe_get(info_obj, 'metadata') or { '' }
+	metadata = json.decode(T, metadata_str) or { T{} }
 
-		if metadata_raw != nil {
-			// got metadata
-			metadata_str := metadata_raw.vstring()
-
-			// mut input var:
-			metadata = json.decode(T, metadata_str) or { T{} }
-		}
-	}
 	// then: password
-	unsafe {
-		password_raw := C.extract_password(info_obj)
-		if password_raw == nil {
-			return none
-		}
-
-		return password_raw.vstring()
-	}
-	return none
+	return safe_get(info_obj, 'password')
 }
 
 pub fn (s SecretSchema) remove_password(label string) bool {
